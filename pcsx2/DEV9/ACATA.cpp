@@ -21,7 +21,6 @@ u16 ACATA::read16(u32 addr) {
     case ACATA_R_DATA:
         return ACATA::handle_dataR(addr);
     case ACATA_R_STATUS_ALT:
-        R_STATUS = 0;
         return R_STATUS;
     case ACATA_R_NSECTOR:
         return R_NSECTOR;
@@ -60,13 +59,13 @@ void ACATA::write16(u32 addr, u16 val) {
     last_write = addr;
     u16 V = val;
     switch (addr) {
-    case ACATA_R_NSECTOR: R_NSECTOR = val; break;
-    case ACATA_R_SECTOR:  R_SECTOR  = val; break;
-    case ACATA_R_FEATURE: R_FEATURE = val; break;
-    case ACATA_R_CONTROL: R_CONTROL = val; break;
-    case ACATA_R_LCYL:    R_LCYL    = val; break;
-    case ACATA_R_HCYL:    R_HCYL    = val; break;
-    case ACATA_R_SELECT:  R_SELECT  = val; break;
+    case ACATA_R_NSECTOR: R_NSECTOR = val & 0xFF; break;
+    case ACATA_R_SECTOR:  R_SECTOR  = val & 0xFF; break;
+    case ACATA_R_FEATURE: R_FEATURE = val & 0xFF; break;
+    case ACATA_R_CONTROL: R_CONTROL = val & 0xFF; break;
+    case ACATA_R_LCYL:    R_LCYL    = val & 0xFF; break;
+    case ACATA_R_HCYL:    R_HCYL    = val & 0xFF; break;
+    case ACATA_R_SELECT:  R_SELECT  = val & 0xFF; break;
     case ACATA_R_COMMAND:
         ACATA::handle_cmd(val); return;
     
@@ -90,8 +89,8 @@ void ACATA::handle_dataW(u32 addr, u16 val) { // writes at R_DATA
         if (ACATA::cmd_handledc < 6) { // packet is followed by a 6 word PIO
             ACATA::ata_c_packet.raw[ACATA::cmd_handledc++] = val;
             if (ACATA::cmd_handledc == 6) {
-                ACATAPI::handle_cmd(ACATA::ata_c_packet);
-                CLRB(R_STATUS, ATA_STAT_DRQ); // keep up DRQ only while the packet comes in?
+                CLRB(R_STATUS, ATA_STAT_DRQ); // packet reception done
+                ACATAPI::handle_cmd(ACATA::ata_c_packet); // may re-set DRQ for data-in commands
             }
         }
         break;
@@ -107,12 +106,14 @@ u16 ACATA::handle_dataR(u32 addr) { // PIO read at R_DATA
     case ATA_C_IDENTIFY_PACKET_DEVICE:
         if (ACATA::cmd_handledc < 256) {
             return ATA_R_IDENTIFY_PACKET_DEVICE[ACATA::cmd_handledc++];
-        } else {ACATA::cmd_handled = -1; CLRB(R_STATUS, ATA_STAT_DRQ);}
+        } else {ACATA::cmd_handled = -1; CLRB(R_STATUS, ATA_STAT_DRQ); R_STATUS |= ATA_STAT_READY;}
         break;
     case ATA_C_SET_FEATURES:
     break;
     case ATA_C_PACKET:
-    break;
+        if (ACATAPI::has_pio_data())
+            return ACATAPI::pio_read_word();
+        break;
     
     default:
         Console.Error("ACATA: reading from %X while no pending CMD", ACATA_R_DATA);
@@ -137,9 +138,11 @@ void ACATA::handle_cmd(u16 val) {
         ACATA::cmd_handled = val;
         ACATA::cmd_handledc = 0;
         if (!ACATA_ISDMA) Console.Error("ATA_C_PACKET: over PIO recieved");
+        R_NSECTOR = 0x01; // ATAPI: CoD=1, IO=0 → ready for command packet
         R_STATUS |= ATA_STAT_DRQ;
         CLRB(R_STATUS, ATA_STAT_BUSY);
-        CLRB(R_STATUS_ALT, ATA_STAT_ERR); // when packet is sent, ACCDVD fails if this bit is set or timeout consumed
+        CLRB(R_STATUS, ATA_STAT_ERR);
+        CLRB(R_STATUS_ALT, ATA_STAT_ERR);
     break;
     case ATA_C_SET_FEATURES:
         Console.Warning("ATA_C_SET_FEATURES: FEATURE:%04X, R_NSECTOR:%04X, R_SECTOR:%04X, R_LCYL:%04X, R_HCYL:%04X",

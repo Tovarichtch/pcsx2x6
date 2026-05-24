@@ -590,6 +590,51 @@ namespace R3000A
 			s32 flags = a1;
 			u16 mode = a2;
 
+			if (!hostRoot.empty() && (path.starts_with("mc0:") || path.starts_with("rom1:")))
+			{
+				const std::string rom1_name = path.substr(path.find(':') + 1);
+				std::string rom1_path = Path::Combine(hostRoot, rom1_name + ".img");
+				if (!FileSystem::FileExists(rom1_path.c_str()))
+					rom1_path = Path::Combine(hostRoot, rom1_name);
+
+				if (FileSystem::FileExists(rom1_path.c_str()))
+				{
+					if (!freefdcount())
+					{
+						v0 = -IOP_EMFILE;
+						pc = ra;
+						return 1;
+					}
+
+					const int hostfd = FileSystem::OpenFDFile(rom1_path.c_str(), O_RDONLY | O_BINARY, 0);
+					if (hostfd < 0)
+					{
+						Console.Error("[ROM1] Failed to open '%s'", rom1_path.c_str());
+						v0 = -IOP_ENOENT;
+						pc = ra;
+						return 1;
+					}
+
+					file = new HostFile(hostfd);
+					v0 = allocfd(file);
+					if ((s32)v0 < 0)
+						file->close();
+					else
+					{
+						fileHandle handle;
+						handle.fd_index = v0 - firstfd;
+						handle.flags = flags;
+						handle.full_path = path;
+						handle.mode = mode;
+						handles.push_back(handle);
+					}
+
+					Console.WriteLn(Color_Green, "[ROM1] Redirected '%s' -> '%s' (fd=%d)", path.c_str(), rom1_path.c_str(), (s32)v0);
+					pc = ra;
+					return 1;
+				}
+			}
+
 			if (is_host(path))
 			{
 				if (!freefdcount())

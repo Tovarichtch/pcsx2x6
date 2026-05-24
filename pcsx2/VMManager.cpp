@@ -1308,6 +1308,7 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 				if (reopen_cards) FileMcd_Reopen(s_serial);
 
 				s_elf_override = Path::Combine(basedir, INI.GetStringValue("data", "elf"));
+				EmuConfig.CurrentGameArgs = INI.GetStringValue("data", "args");
 				ACSRAM::filepath = Path::Combine(basedir, INI.GetStringValue("data", "sram", "acsram.bin"));
 				ACATA::SetEnv(basedir, s_imgname, s_acmedia);
 				int R;

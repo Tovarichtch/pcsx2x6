@@ -14,8 +14,8 @@ uint16_t ATA_R_IDENTIFY_PACKET_DEVICE[256] {
     0x2020,0x2020,0x2020,0x2020,//[38
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, //[50
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,// [61
-    0x0007, //Word 62: Single-word DMA
-    0x0007, //Word 63: Multiword DMA
+    0x0000, //Word 62: Single-word DMA (disabled — no ACCORE DMA controller yet)
+    0x0000, //Word 63: Multiword DMA (disabled — forces PIO mode)
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,//[80]
     0,0,0,0,0,0,0,//[87]
     0x0000,//Word 88 — Ultra DMA

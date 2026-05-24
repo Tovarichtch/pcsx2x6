@@ -217,6 +217,8 @@ int DEV9irqHandler(void)
 	//DevCon.WriteLn("DEV9: DEV9irqHandler %x, %x", dev9.irqcause, dev9.irqmask);
 	if (dev9.irqcause & dev9.irqmask)
 		return 1;
+	if (ACCORE::hasPendingInterrupt())
+		return 1;
 	return 0;
 }
 
