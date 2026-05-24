@@ -204,7 +204,7 @@ void psxDma11(u32 madr, u32 bcr, u32 chcr)
 {
 	unsigned int i, j;
 	int size = (bcr >> 16) * (bcr & 0xffff);
-	PSXDMA_LOG("*** DMA 11 - SIO2 in *** %lx addr = %lx size = %lx", chcr, madr, bcr);
+	Console.Warning("DMA11 SIO2-IN: chcr=%08X madr=%08X bcr=%08X size=%d", chcr, madr, bcr, size);
 	// Set dmaBlockSize, so SIO2 knows to count based on the DMA block rather than SEND3 length.
 	// When SEND3 is written, SIO2 will automatically reset this to zero.
 	g_Sio2.dmaBlockSize = (bcr & 0xffff) * 4;

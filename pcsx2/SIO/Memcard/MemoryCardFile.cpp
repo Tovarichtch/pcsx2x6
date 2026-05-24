@@ -743,6 +743,7 @@ bool FileMcd_IsPSX(uint port, uint slot)
 
 s32 FileMcd_Read(uint port, uint slot, u8* dest, u32 adr, int size)
 {
+	Console.Warning("FileMcd_Read: port=%u slot=%u adr=0x%08X size=%d", port, slot, adr, size);
 	const uint combinedSlot = FileMcd_ConvertToSlot(port, slot);
 	switch (EmuConfig.Mcd[combinedSlot].Type)
 	{

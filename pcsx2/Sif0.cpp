@@ -14,7 +14,7 @@ static bool done = false;
 
 static __fi void Sif0Init()
 {
-	SIF_LOG("SIF0 DMA start...");
+	Console.Warning("SIF0 DMA start (IOP→EE)");
 	done = false;
 	sif0.ee.cycles = 0;
 	sif0.iop.cycles = 0;

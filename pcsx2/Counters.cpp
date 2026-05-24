@@ -6,6 +6,7 @@
 
 #include "Common.h"
 #include "R3000A.h"
+#include "IopMem.h"
 #include "Counters.h"
 #include "IopCounters.h"
 
@@ -500,6 +501,25 @@ static __fi void VSyncStart(u64 sCycle)
 	VMManager::Internal::PollInputOnCPUThread();
 
 	EECNT_LOG("    ================  EE COUNTER VSYNC START (frame: %d)  ================", g_FrameCount);
+
+	if (g_FrameCount == 60 || g_FrameCount == 120)
+	{
+		Console.Warning("=== VSYNC PC SAMPLE frame=%d ===", g_FrameCount);
+		Console.Warning("  EE pc=0x%08x, IOP pc=0x%08x", cpuRegs.pc, psxRegs.pc);
+		Console.Warning("  EE: ra=0x%08x sp=0x%08x v0=0x%08x a0=0x%08x s0=0x%08x", cpuRegs.GPR.n.ra.UL[0], cpuRegs.GPR.n.sp.UL[0], cpuRegs.GPR.n.v0.UL[0], cpuRegs.GPR.n.a0.UL[0], cpuRegs.GPR.n.s0.UL[0]);
+		u32 ee_phys = cpuRegs.pc & 0x1FFFFFFF;
+		if (ee_phys < Ps2MemSize::MainRam)
+		{
+			for (int i = -2; i <= 6; i++)
+			{
+				u32 a = ee_phys + i * 4;
+				if (a < Ps2MemSize::MainRam)
+					Console.Warning("  EE [0x%08x] = 0x%08x%s", cpuRegs.pc + i * 4, *(u32*)&eeMem->Main[a], (i == 0) ? " <-- pc" : "");
+			}
+		}
+		Console.Warning("  IOP: ra=0x%08x a0=0x%08x v0=0x%08x", psxRegs.GPR.n.ra, psxRegs.GPR.n.a0, psxRegs.GPR.n.v0);
+		Console.Warning("===");
+	}
 
 	// Memcard auto ejection - Uses a tick system timed off of real time, decrementing one tick per frame.
 	AutoEject::CountDownTicks();

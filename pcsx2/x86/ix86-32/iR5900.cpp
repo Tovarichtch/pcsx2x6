@@ -2224,7 +2224,23 @@ static void recRecompile(const u32 startpc)
 			else if (typeAexecjump >> 26 == 3) // JAL to 0x82170
 				g_eeloadExec = EELOAD_START + 0x170;
 			else
-				Console.WriteLn("recRecompile: Could not enable launch arguments for fast boot mode; unidentified BIOS version! Please report this to the PCSX2 developers.");
+			{
+				Console.WriteLn("recRecompile: Could not enable launch arguments for fast boot mode; unidentified BIOS version!");
+				Console.Warning("=== EELOAD DUMP (finding ExecPS2 JAL) ===");
+				Console.Warning("EELOAD_START=0x%08x, g_eeloadMain=0x%08x", EELOAD_START, g_eeloadMain);
+				Console.Warning("Checked offsets: +0x470=0x%08x +0x5B0=0x%08x +0x618=0x%08x +0x600=0x%08x",
+					typeAexecjump, typeBexecjump, typeCexecjump, typeDexecjump);
+				for (u32 off = 0; off < 0x800; off += 4)
+				{
+					u32 insn = memRead32(EELOAD_START + off);
+					if ((insn >> 26) == 3) // JAL
+					{
+						u32 target = ((EELOAD_START + off + 4) & 0xf0000000U) | (insn << 2 & 0x0fffffffU);
+						Console.Warning("  EELOAD+0x%03x: JAL 0x%08x (insn=0x%08x)", off, target, insn);
+					}
+				}
+				Console.Warning("=== END EELOAD DUMP ===");
+			}
 		}
 	}
 

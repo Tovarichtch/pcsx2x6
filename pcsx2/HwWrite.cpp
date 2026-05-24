@@ -161,20 +161,24 @@ void _hwWrite32( u32 mem, u32 value )
 				break;
 
 				mcase(SBUS_F220):
+					Console.Warning("SBUS_F220 (MSFLAG) write: |= 0x%08X (result: 0x%08X)", value, psHu32(mem) | value);
 					psHu32(mem) |= value;
 				return;
 
 				mcase(SBUS_F230):
+					Console.Warning("SBUS_F230 (SMFLAG) write: &= ~0x%08X (was: 0x%08X)", value, psHu32(mem));
 					psHu32(mem) &= ~value;
 				return;
 
 				mcase(SBUS_F240):
+					Console.Warning("SBUS_F240 write: value=0x%08X (current: 0x%08X)", value, psHu32(mem));
 					if (value & (1 << 18))
 					{
 						iopIntcIrq(1);
 					}
 					if (value & (1 << 19))
 					{
+						Console.Warning("!!! IOP RESET triggered (SBUS_F240 bit19) !!!");
 						u64 cycle = psxRegs.cycle;
 						//pgifInit();
 						psxReset();

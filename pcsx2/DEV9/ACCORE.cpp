@@ -14,6 +14,7 @@ u16 INTR_REG = 0;
 u16 ACCORE::Read16(u32 mem) {
     switch (mem) {
 	case 0x1241C000:
+		Console.Warning("ACCORE::INTR_REG read: %04X", INTR_REG);
     	return INTR_REG;
     
     break;
@@ -36,9 +37,11 @@ void ACCORE::Write16(u32 mem, u16 value) {
 		case 0x1241601A:
 			break;
 		case ACCORE_FPGA_BEGIN_PROGRAM:
+			Console.Warning("ACFPGA: BEGIN_PROGRAM (INTR_REG |= 0x3000)");
 			INTR_REG |= (0x1000|0x2000);
 			break;
 		case ACCPRE_FPGA_FINISH_PROGRAM:
+			Console.Warning("ACFPGA: FINISH_PROGRAM (INTR_REG &= ~0x3000)");
 			CLRB(INTR_REG, (0x1000|0x2000));
 			break;
 

@@ -590,6 +590,8 @@ namespace R3000A
 			s32 flags = a1;
 			u16 mode = a2;
 
+			Console.Warning("[IOP OPEN] path='%s' flags=0x%x mode=0x%x iop_pc=0x%08x", path.c_str(), flags, mode, (u32)pc);
+
 			if (!hostRoot.empty() && (path.starts_with("mc0:") || path.starts_with("rom1:")))
 			{
 				const std::string rom1_name = path.substr(path.find(':') + 1);
@@ -843,6 +845,8 @@ namespace R3000A
 			if (IOManFile* file = getfd<IOManFile>(fd))
 			{
 				v0 = file->lseek(offset, whence);
+				if (fd >= firstfd)
+					Console.WriteLn("[IOPRP-SEEK] fd=%d offset=%d whence=%d result=%d", fd, offset, whence, (s32)v0);
 				pc = ra;
 				return 1;
 			}
@@ -898,10 +902,30 @@ namespace R3000A
 
 				v0 = file->read(buf.get(), count);
 
+				if (fd >= firstfd)
+				{
+					Console.WriteLn("[IOPRP-READ] fd=%d count=%u read=%d dst=0x%08x", fd, count, (s32)v0, data);
+					if (count > 1024)
+					{
+						Console.WriteLn("[IOPRP-READ] First 64 bytes of buf: %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x",
+							(u8)buf[0], (u8)buf[1], (u8)buf[2], (u8)buf[3], (u8)buf[4], (u8)buf[5], (u8)buf[6], (u8)buf[7],
+							(u8)buf[8], (u8)buf[9], (u8)buf[10], (u8)buf[11], (u8)buf[12], (u8)buf[13], (u8)buf[14], (u8)buf[15],
+							(u8)buf[16], (u8)buf[17], (u8)buf[18], (u8)buf[19], (u8)buf[20], (u8)buf[21], (u8)buf[22], (u8)buf[23],
+							(u8)buf[24], (u8)buf[25], (u8)buf[26], (u8)buf[27], (u8)buf[28], (u8)buf[29], (u8)buf[30], (u8)buf[31]);
+					}
+				}
+
 				[[likely]]
 				if (v0 >= 0 && iopMemSafeWriteBytes(data, buf.get(), v0))
 				{
 					psxCpu->Clear(data, (v0 + 3) / 4);
+					if (fd >= firstfd && count > 1024)
+					{
+						u8 *iopPtr = (u8*)iopMem->Main + (data & 0x1fffff);
+						Console.WriteLn("[IOPRP-VERIFY] IOP mem at 0x%08x: %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x",
+							data, iopPtr[0], iopPtr[1], iopPtr[2], iopPtr[3], iopPtr[4], iopPtr[5], iopPtr[6], iopPtr[7],
+							iopPtr[8], iopPtr[9], iopPtr[10], iopPtr[11], iopPtr[12], iopPtr[13], iopPtr[14], iopPtr[15]);
+					}
 				}
 				else
 				{
@@ -1474,6 +1498,7 @@ namespace R3000A
 		irxHLE hle = irxImportHLE(libname, index);
 		irxDEBUG debug = irxImportDebug(libname, index);
 
+		Console.Warning("IOP IRX: %s.%03d %s", libname.c_str(), index, funcname ? funcname : "?");
 		irxImportLog(libname, index, funcname);
 
 		if (debug)

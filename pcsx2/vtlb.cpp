@@ -540,6 +540,65 @@ static __ri void vtlb_Miss(u32 addr, u32 mode)
 	}
 
 	static int spamStop = 0;
+	if (spamStop == 0)
+	{
+		Console.Error("=== FIRST TLB MISS DIAGNOSTIC ===");
+		Console.Error(message);
+		u32 phys = cpuRegs.pc & 0x1FFFFFFF;
+		if (phys < Ps2MemSize::MainRam)
+		{
+			for (int i = -2; i <= 4; i++)
+			{
+				u32 a = phys + i * 4;
+				if (a < Ps2MemSize::MainRam)
+					Console.Error("  [0x%08x] = 0x%08x", 0x80000000 + a, *(u32*)&eeMem->Main[a]);
+			}
+		}
+		Console.Error("  ra=0x%08x_%08x sp=0x%08x_%08x", cpuRegs.GPR.n.ra.UL[1], cpuRegs.GPR.n.ra.UL[0], cpuRegs.GPR.n.sp.UL[1], cpuRegs.GPR.n.sp.UL[0]);
+		Console.Error("  v0=0x%08x_%08x v1=0x%08x_%08x", cpuRegs.GPR.n.v0.UL[1], cpuRegs.GPR.n.v0.UL[0], cpuRegs.GPR.n.v1.UL[1], cpuRegs.GPR.n.v1.UL[0]);
+		Console.Error("  a0=0x%08x_%08x a1=0x%08x_%08x", cpuRegs.GPR.n.a0.UL[1], cpuRegs.GPR.n.a0.UL[0], cpuRegs.GPR.n.a1.UL[1], cpuRegs.GPR.n.a1.UL[0]);
+		Console.Error("  a2=0x%08x_%08x a3=0x%08x_%08x", cpuRegs.GPR.n.a2.UL[1], cpuRegs.GPR.n.a2.UL[0], cpuRegs.GPR.n.a3.UL[1], cpuRegs.GPR.n.a3.UL[0]);
+		Console.Error("  t0=0x%08x_%08x t1=0x%08x_%08x", cpuRegs.GPR.n.t0.UL[1], cpuRegs.GPR.n.t0.UL[0], cpuRegs.GPR.n.t1.UL[1], cpuRegs.GPR.n.t1.UL[0]);
+		Console.Error("  s0=0x%08x_%08x s1=0x%08x_%08x", cpuRegs.GPR.n.s0.UL[1], cpuRegs.GPR.n.s0.UL[0], cpuRegs.GPR.n.s1.UL[1], cpuRegs.GPR.n.s1.UL[0]);
+		Console.Error("  gp=0x%08x_%08x at=0x%08x_%08x", cpuRegs.GPR.n.gp.UL[1], cpuRegs.GPR.n.gp.UL[0], cpuRegs.GPR.n.at.UL[1], cpuRegs.GPR.n.at.UL[0]);
+		u32 s0_phys = cpuRegs.GPR.n.s0.UL[0] & 0x1FFFFFFF;
+		if (s0_phys >= 16 && s0_phys + 16 < Ps2MemSize::MainRam)
+		{
+			Console.Error("  --- Array around s0=0x%08x ---", cpuRegs.GPR.n.s0.UL[0]);
+			for (int i = -4; i <= 4; i++)
+			{
+				u32 a = s0_phys + i * 4;
+				u32 val = *(u32*)&eeMem->Main[a];
+				Console.Error("  [0x%08x] = 0x%08x", a, val);
+				if (val != 0 && (val & 0x1FFFFFFF) < Ps2MemSize::MainRam)
+				{
+					char str[64] = {};
+					memcpy(str, &eeMem->Main[val & 0x1FFFFFFF], std::min(63u, Ps2MemSize::MainRam - (val & 0x1FFFFFFF)));
+					str[63] = 0;
+					Console.Error("    -> \"%s\"", str);
+				}
+			}
+		}
+		u32 a0_phys = cpuRegs.GPR.n.a0.UL[0] & 0x1FFFFFFF;
+		if (a0_phys < Ps2MemSize::MainRam)
+		{
+			char dstbuf[128] = {};
+			memcpy(dstbuf, &eeMem->Main[a0_phys], std::min(127u, Ps2MemSize::MainRam - a0_phys));
+			dstbuf[127] = 0;
+			Console.Error("  --- Dest buffer at a0=0x%08x: \"%s\" ---", cpuRegs.GPR.n.a0.UL[0], dstbuf);
+		}
+		u32 ra_phys = cpuRegs.GPR.n.ra.UL[0] & 0x1FFFFFFF;
+		if (ra_phys >= 8 && ra_phys + 16 < Ps2MemSize::MainRam)
+		{
+			Console.Error("  --- Caller site (ra=0x%08x) ---", cpuRegs.GPR.n.ra.UL[0]);
+			for (int i = -8; i <= 8; i++)
+			{
+				u32 a = ra_phys + i * 4;
+				Console.Error("  [0x%08x] = 0x%08x%s", 0x80000000 + a, *(u32*)&eeMem->Main[a], (i == 0) ? " <-- ra" : "");
+			}
+		}
+		Console.Error("=================================");
+	}
 	if (spamStop++ < 50 || IsDevBuild)
 		Console.Error(message);
 }

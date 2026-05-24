@@ -15,7 +15,7 @@ static bool sif1_dma_stall = false;
 
 static __fi void Sif1Init()
 {
-	SIF_LOG("SIF1 DMA start...");
+	Console.Warning("SIF1 DMA start (EE→IOP)");
 	done = false;
 	sif1.ee.cycles = 0;
 	sif1.iop.cycles = 0;
