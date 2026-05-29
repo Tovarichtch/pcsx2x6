@@ -33,7 +33,7 @@ static __fi bool WriteFifoToEE()
 	ptag = sif0ch.getAddr(sif0ch.madr, DMAC_SIF0, true);
 	if (ptag == NULL)
 	{
-		DevCon.Warning("Write Fifo to EE: ptag == NULL");
+		DevCon.Warning("Write Fifo to EE: ptag == NULL madr=%08X", sif0ch.madr);
 		return false;
 	}
 
@@ -140,7 +140,9 @@ static __fi bool ProcessIOPTag()
 	if (sif0tag.IRQ  || (sif0tag.ID & 4)) sif0.iop.end = true;
 	SIF_LOG("SIF0 IOP Tag: madr=%lx, tadr=%lx, counter=%lx (%08X_%08X) Junk %d", hw_dma9.madr, hw_dma9.tadr, sif0.iop.counter, sif0words, sif0data, sif0.iop.writeJunk);
 
-	return true;
+	if (sif0.iop.counter > 0x20 || !sif0.iop.end)
+		return true;
+	return false;
 }
 
 // Stop transferring ee, and signal an interrupt.

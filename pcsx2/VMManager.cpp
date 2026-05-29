@@ -191,6 +191,9 @@ static u32 s_frame_advance_count = 0;
 static bool s_fast_boot_requested = false;
 static bool s_gs_open_on_initialize = false;
 static bool s_thread_affinities_set = false;
+static std::string s_acgame_mcd_override[2];
+static bool s_acgame_usbgun = false;
+static bool s_acgame_sys246 = false;
 
 static LimiterModeType s_limiter_mode = LimiterModeType::Nominal;
 static s64 s_limiter_ticks_per_frame = 0;
@@ -1157,6 +1160,16 @@ void VMManager::UpdateDiscDetails(bool booting)
 	UpdateGameSettingsLayer();
 	ApplySettings();
 
+	for (int x = 0; x < 2; x++)
+	{
+		if (!s_acgame_mcd_override[x].empty())
+		{
+			int indx = FileMcd_ConvertToSlot(x, 0);
+			EmuConfig.Mcd[indx].Filename = s_acgame_mcd_override[x];
+			EmuConfig.Mcd[indx].Enabled = true;
+		}
+	}
+
 	// Patches are game-dependent, thus should get applied after game settings ia loaded.
 	Patch::ReloadPatches(s_disc_serial, HasBootedELF() ? s_current_crc : 0, true, true, false, false);
 
@@ -1297,12 +1310,26 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 				s_acmedia = INI.GetStringValue("data", "media");
 				s_imgname = INI.GetStringValue("data", "mediasrc");
 				s_disc_serial = s_serial = INI.GetStringValue("game", "gameid");
+				std::string platform = INI.GetStringValue("game", "platform", "");
+				s_acgame_sys246 = (platform == "246" || platform == "256");
+				if (s_acgame_sys246)
+				{
+					Console.WriteLnFmt(Color_Green, "ACGAME: System {} detected — extended IOP RAM", platform);
+				}
 
 				std::string card;
 				if ((card = INI.GetStringValue("data", "dongle", "")) != "") {
+					std::string src = Path::Combine(basedir, card);
+					std::string dst = Path::Combine(EmuFolders::MemoryCards, card);
+					if (FileSystem::FileExists(src.c_str()) && !FileSystem::FileExists(dst.c_str()))
+						FileSystem::CopyFilePath(src.c_str(), dst.c_str(), false);
 					Host::SetBaseStringSettingValue("MemoryCards", "Slot1_Filename", card.c_str());
 				}
 				if ((card = INI.GetStringValue("data", "card", "")) != "") {
+					std::string src = Path::Combine(basedir, card);
+					std::string dst = Path::Combine(EmuFolders::MemoryCards, card);
+					if (FileSystem::FileExists(src.c_str()) && !FileSystem::FileExists(dst.c_str()))
+						FileSystem::CopyFilePath(src.c_str(), dst.c_str(), false);
 					Host::SetBaseStringSettingValue("MemoryCards", "Slot2_Filename", card.c_str());
 				}
 				/// TODOx6: Decide if we want to lock mc1 access if .ACGAME does not ask for it
@@ -1312,6 +1339,7 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 
 				//FileMcd_Reopen(s_serial);
 				s_elf_override = Path::Combine(basedir, INI.GetStringValue("data", "elf"));
+				EmuConfig.CurrentGameArgs = INI.GetStringValue("data", "args");
 				ACSRAM::filepath = Path::Combine(basedir, INI.GetStringValue("data", "sram", "sram.bin"));
 				ACATA::SetEnv(basedir, s_imgname, s_acmedia);
 				int R;
@@ -1319,10 +1347,12 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 					Error::SetString(error, std::string("cannot open arcade media image"));
 					return false;
 				}
+				s_acgame_usbgun = INI.GetBoolValue("data", "usbgun", false);
+
 				Console.WriteLnFmt(Color_Green, "ACGAME: elf:'{}'", s_elf_override);
 				Console.WriteLnFmt(Color_Green, "ACGAME: sram:'{}'", ACSRAM::filepath);
 				Console.WriteLnFmt(Color_Green, "ACGAME: media:'{}'", ACATA::imgpath);
-				
+
 				return true;
 			}
 		}
@@ -1579,6 +1609,8 @@ VMBootResult VMManager::Initialize(const VMBootParameters& boot_params, Error* e
 	s_cpu_implementation_changed = false;
 	UpdateCPUImplementations();
 	mmap_ResetBlockTracking();
+	if (s_acgame_sys246)
+		EmuConfig.Cpu.ExtraMemory = true;
 	memSetExtraMemMode(EmuConfig.Cpu.ExtraMemory);
 	Internal::ClearCPUExecutionCaches();
 	FPControlRegister::SetCurrent(EmuConfig.Cpu.FPUFPCR);
@@ -1648,6 +1680,12 @@ VMBootResult VMManager::Initialize(const VMBootParameters& boot_params, Error* e
 		DEV9close();
 		DEV9shutdown();
 	};
+
+	if (s_acgame_usbgun)
+	{
+		ACJV::CurrentBoardID = TSS_GUN_EXTENTION;
+		Console.WriteLn(Color_Green, "ACGAME: JVS gun board enabled (TSS-I/O GUN-EXTENTION)");
+	}
 
 	Console.WriteLn("Opening USB...");
 	if (!USBopen())
@@ -3134,6 +3172,16 @@ void VMManager::CheckForMemoryCardConfigChanges(const Pcsx2Config& old_config)
 			sioSerial = game->memcardFiltersAsString();
 		if (sioSerial.empty())
 			sioSerial = s_disc_serial;
+	}
+
+	for (int x = 0; x < 2; x++)
+	{
+		if (!s_acgame_mcd_override[x].empty())
+		{
+			int indx = FileMcd_ConvertToSlot(x, 0);
+			EmuConfig.Mcd[indx].Filename = s_acgame_mcd_override[x];
+			EmuConfig.Mcd[indx].Enabled = true;
+		}
 	}
 
 	if (!GSDumpReplayer::IsReplayingDump())

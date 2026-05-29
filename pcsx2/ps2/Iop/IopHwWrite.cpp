@@ -595,7 +595,6 @@ void iopHwWrite32_Page8( u32 addr, mem32_t val )
 	{
 		if( masked_addr < 0x240 )
 		{
-			Sio2Log.WriteLn("%s(%08X, %08X) SIO2 SEND3 Write (len = %d / %d) (port = %d)", __FUNCTION__, addr, val, (val >> 8) & Sio2Cmd::COMMAND_LENGTH_MASK, (val >> 18) & Sio2Cmd::COMMAND_LENGTH_MASK, val & 0x01);
 			const int parm = (masked_addr - 0x200) / 4;
 			g_Sio2.SetCmd(parm, val);
 		}
@@ -628,7 +627,6 @@ void iopHwWrite32_Page8( u32 addr, mem32_t val )
 					Sio2Log.Warning("%s(%08X, %08X) Unexpected 32 bit write to HW_SIO2_FIFO", __FUNCTION__, addr, val);
 					break;
 				case (HW_SIO2_CTRL & 0x0fff):
-					Sio2Log.WriteLn("%s(%08X, %08X) SIO2 CTRL Write", __FUNCTION__, addr, val);
 					g_Sio2.SetCtrl(val);
 					break;
 				case (HW_SIO2_CMD_STAT & 0x0fff):

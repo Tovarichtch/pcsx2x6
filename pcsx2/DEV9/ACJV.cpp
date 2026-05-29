@@ -3,6 +3,8 @@
 #include "ACJV.h"
 #include "Config.h"
 #include "Host.h"
+#include "Input/InputManager.h"
+#include "GS/GS.h"
 #include "common/SettingsInterface.h"
 #include <array>
 #include <string>
@@ -29,6 +31,7 @@ u16 Sent0D = 0, Sent0C = 0;
 // R/W arrays are u8 because ACJV is processing (u8) arrays, but the MMIO is performed over (volatile u16*). leaving the higher byte empty
 std::array<u8, ACJV_PACKETSIZE> rdbuf; // NAMCO_PCB ---> IOP
 std::array<u8, ACJV_PACKETSIZE> wrbuf; // IOP --> NAMCO_PCB
+std::array<u8, 0x8000> jvmem; // full JV memory (32KB), backing for firmware uploads and base range
 inline u16* rdbuf_getu16() { // NAMCO_PCB ---> IOP
     return reinterpret_cast<u16*>(rdbuf.data());
 }
@@ -70,6 +73,8 @@ static constexpr const std::array<InputBindingInfo, ACJV::NUM_DIP_SWITCHES> s_di
 	{s_dip_switch_info[2].toggle_bind_name, TRANSLATE_NOOP("JVS", "Toggle Monitor Sync Frequency"), nullptr, InputBindingInfo::Type::Button, 2, GenericInputBinding::Unknown},
 	{s_dip_switch_info[3].toggle_bind_name, TRANSLATE_NOOP("JVS", "Toggle Video Sync Split"), nullptr, InputBindingInfo::Type::Button, 3, GenericInputBinding::Unknown},
 }};
+
+//TODO+FIXME: missing controls inputs
 
 static u16 s_dip_switch_state = DEFAULT_DIP_SWITCH_STATE;
 u32 lastRead = 0x0;
@@ -162,27 +167,40 @@ void ACJV::SetDefaultConfiguration(SettingsInterface& si)
 	si.ClearSection(CONFIG_SECTION);
 	for (const DIPSwitchInfo& dip_switch : s_dip_switch_info)
 		si.SetBoolValue(CONFIG_SECTION, dip_switch.name, dip_switch.default_value);
+
 }
 
 u16 ACJV::Read16(u32 addr) {
-    if (addr >= ACJV_RDBASE && addr < 0x124045FE) {
+    u16 val = 0;
+    if (addr >= ACJV_RDBASE && addr <= 0x124045FE) {
         int x = (addr - ACJV_RDBASE)/2;
-		if (x == 2 || x == 3 || x == 4) return rdbuf.at(x)|1;// initial polling expects these addrs to not be zero
-        return (u16)rdbuf.at(x);
-    } else if ((addr == 0x124045FE)) {
-		return (u16)rdbuf.at((addr - ACJV_RDBASE)/2);
+		if (x == 2 || x == 3 || x == 4) val = rdbuf.at(x)|1; // initial polling expects these addrs to not be zero
+        else val = (u16)rdbuf.at(x);
+    } else {
+        // fallback to jvmem backing store for addresses outside packet buffers
+        u32 jvoff = (addr - ACJV_BASE_ADDDR) & (jvmem.size() - 1);
+        if (jvoff < jvmem.size())
+            val = jvmem[jvoff];
 	}
-	return 0;
+    return val;
 }
 
 void ACJV::Write16(u32 addr, u16 val) {
-    if (addr >= ACJV_WRBASE && addr < 0x12404BFE) { //0x124048FE
+    // all writes go to jvmem backing store (firmware uploads, init data)
+    u32 jvoff = (addr - ACJV_BASE_ADDDR) & (jvmem.size() - 1);
+    if (jvoff < jvmem.size())
+        jvmem[jvoff] = (u8)val;
+    if (addr >= ACJV_RDBASE && addr < ACJV_WRBASE) {
+        u32 x = (addr - ACJV_RDBASE)/2;
+        rdbuf[x] = (u8)val;
+    } else if (addr >= ACJV_WRBASE && addr < 0x12404BFE) {
         u32 x = (addr - ACJV_WRBASE)/2;
         wrbuf[x] = val;
     } else if (addr == 0x12404BFE) {
        wrbuf[(addr -  ACJV_WRBASE)/2] = val;
 		do_acjv_packet();
-	}
+	} else {
+    }
 }
 
 #define assert(x) if (!(x)) Console.WriteLn("## ASSERT ## %s:%s:%d %s", __FILE__, __FUNCTION__, __LINE__, #x);
@@ -277,6 +295,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*output++) = JVS_PLAYER_COUNT; //2 players
 			(*output++) = 0x10;             //16 switches
 			(*output++) = 0x00;
+			// TODOx6: enable when JVS controls are implemented — lightgun coords, drive wheel, drum pads, touch
 #if 0
 			if(m_jvsMode == JVS_MODE::DRIVE)
 			{
@@ -459,10 +478,20 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 
+			// TODOx6: enable when JVS controls are implemented — analog read for lightgun/drum/drive
 #if 0
 			if(m_jvsMode == JVS_MODE::LIGHTGUN)
 			{
+				// TODOx6: Time Crisis 4 reads from analog input to determine screen position
 				assert(channel == 2);
+				const auto& [win_x, win_y] = InputManager::GetPointerAbsolutePosition(0);
+				float disp_x, disp_y;
+				GSTranslateWindowToDisplayCoordinates(win_x, win_y, &disp_x, &disp_y);
+				if (disp_x >= 0.0f && disp_y >= 0.0f)
+				{
+					m_jvsScreenPosX = static_cast<u16>(std::clamp(1.0f - disp_x, 0.0f, 1.0f) * 0xFFFF);
+					m_jvsScreenPosY = static_cast<u16>(std::clamp(disp_y, 0.0f, 1.0f) * 0xFFFF);
+				}
 				(*output++) = static_cast<u8>(m_jvsScreenPosX >> 8); //Pos X MSB
 				(*output++) = static_cast<u8>(m_jvsScreenPosX);      //Pos X LSB
 				(*output++) = static_cast<u8>(m_jvsScreenPosY >> 8); //Pos Y MSB
@@ -494,6 +523,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*dstSize) += (2 * channel) + 1;
 		}
 		break;
+		// TODOx6: enable when JVS controls are implemented — mouse->screen coord conversion for lightgun
 #if 0
 		case JVS::READ_INP_SCREENPOS:
 		{
@@ -502,6 +532,16 @@ void do_jvs_packet(const u8* input, u8* output) {
 			assert(channel == 1);
 			inWorkChecksum += channel;
 			inSize--;
+
+			// TODOx6: Read live mouse position and convert to JVS screen coords (0x0000-0xFFFF)
+			const auto& [win_x, win_y] = InputManager::GetPointerAbsolutePosition(0);
+			float disp_x, disp_y;
+			GSTranslateWindowToDisplayCoordinates(win_x, win_y, &disp_x, &disp_y);
+			if (disp_x >= 0.0f && disp_y >= 0.0f)
+			{
+				m_jvsScreenPosX = static_cast<u16>(std::clamp(1.0f - disp_x, 0.0f, 1.0f) * 0xFFFF);
+				m_jvsScreenPosY = static_cast<u16>(std::clamp(disp_y, 0.0f, 1.0f) * 0xFFFF);
+			}
 
 			(*output++) = JVS_CMD_SUCCESS;
 
@@ -555,7 +595,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 		}
 	}
 	u8 inChecksum = (*input);
-	// if (inChecksum != (inWorkChecksum & 0xFF)) 
+	// if (inChecksum != (inWorkChecksum & 0xFF))
 		// Console.Warning("ACJV::%s: checksum mismatch: %02X | %02X", __FUNCTION__, inChecksum, inWorkChecksum&0xFF);
 }
 

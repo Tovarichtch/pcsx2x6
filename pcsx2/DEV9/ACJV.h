@@ -35,6 +35,7 @@ enum BOARDID {
 	MIU_IO_JPN_GUN_EXTENTI
 };
 
+
 namespace ACJV {
     enum : u32
     {

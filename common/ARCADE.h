@@ -28,4 +28,5 @@ struct ArcadeBootParams {
 	std::string elf_path;
 	std::string sram_path;
 	ACMEDIATYPE MediaType;
+	bool usbgun = false;
 };

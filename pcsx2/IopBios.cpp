@@ -590,6 +590,54 @@ namespace R3000A
 			s32 flags = a1;
 			u16 mode = a2;
 
+			// S246 LLE: real IOP firmware opens rom1:/mc0:/ac0:/HST: via normal syscalls — serve from game directory
+			// e.g. firmware does open("rom1:ACCORE") -> we serve <hostRoot>/ACCORE
+			if (!hostRoot.empty() && (path.starts_with("mc0:") || path.starts_with("rom1:") || path.starts_with("ac0:") || path.starts_with("HST:")))
+			{
+				std::string rom1_name = path.substr(path.find(':') + 1);
+				if (rom1_name.starts_with("/"))
+					rom1_name = rom1_name.substr(1);
+				std::string rom1_path = Path::Combine(hostRoot, rom1_name + ".img");
+				if (!FileSystem::FileExists(rom1_path.c_str()))
+					rom1_path = Path::Combine(hostRoot, rom1_name);
+
+				if (FileSystem::FileExists(rom1_path.c_str()))
+				{
+					if (!freefdcount())
+					{
+						v0 = -IOP_EMFILE;
+						pc = ra;
+						return 1;
+					}
+
+					const int hostfd = FileSystem::OpenFDFile(rom1_path.c_str(), O_RDONLY | O_BINARY, 0);
+					if (hostfd < 0)
+					{
+						Console.Error("[ROM1] Failed to open '%s'", rom1_path.c_str());
+						v0 = -IOP_ENOENT;
+						pc = ra;
+						return 1;
+					}
+
+					file = new HostFile(hostfd);
+					v0 = allocfd(file);
+					if ((s32)v0 < 0)
+						file->close();
+					else
+					{
+						fileHandle handle;
+						handle.fd_index = v0 - firstfd;
+						handle.flags = flags;
+						handle.full_path = path;
+						handle.mode = mode;
+						handles.push_back(handle);
+					}
+
+					pc = ra;
+					return 1;
+				}
+			}
+
 			if (is_host(path))
 			{
 				if (!freefdcount())
