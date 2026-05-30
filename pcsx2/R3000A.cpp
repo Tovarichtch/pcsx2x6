@@ -12,6 +12,7 @@
 #include "IopBios.h"
 #include "IopHw.h"
 #include "IopDma.h"
+#include "SIO/Sio2.h"
 #include "CDVD/Ps1CD.h"
 #include "CDVD/CDVD.h"
 
@@ -192,11 +193,13 @@ static __fi void _psxTestInterrupts()
 	// as follows helps speed up most games.
 
 	if( psxRegs.interrupt & ((1 << IopEvt_Cdvd) | (1 << IopEvt_Dma11) | (1 << IopEvt_Dma12)
-		| (1 << IopEvt_Cdrom) | (1 << IopEvt_CdromRead) | (1 << IopEvt_DEV9) | (1 << IopEvt_USB)))
+		| (1 << IopEvt_Cdrom) | (1 << IopEvt_CdromRead) | (1 << IopEvt_DEV9) | (1 << IopEvt_USB)
+		| (1 << IopEvt_SIO2)))
 	{
 		IopTestEvent(IopEvt_Cdvd,		cdvdActionInterrupt);
 		IopTestEvent(IopEvt_Dma11,		psxDMA11Interrupt);	// SIO2
 		IopTestEvent(IopEvt_Dma12,		psxDMA12Interrupt);	// SIO2
+		IopTestEvent(IopEvt_SIO2,		sio2DelayedInterrupt);
 		IopTestEvent(IopEvt_Cdrom,		cdrInterrupt);
 		IopTestEvent(IopEvt_CdromRead,	cdrReadInterrupt);
 		IopTestEvent(IopEvt_DEV9,		dev9Interrupt);
