@@ -277,7 +277,7 @@ void GameList::FillBootParametersForEntry(VMBootParameters* params, const Entry*
 				Console.WriteLnFmt("ARCADE: setting card   to: '{}'", card);
 			}*/
 		} else {
-			Console.Error("cannot read arcade game config '%s'", entry->path);
+			Console.Error("cannot read arcade game config '%s'", entry->path.c_str());
 		}
 	}
 	else
